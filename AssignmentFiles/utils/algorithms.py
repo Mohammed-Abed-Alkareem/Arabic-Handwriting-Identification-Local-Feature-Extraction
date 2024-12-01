@@ -75,31 +75,33 @@ def get_images(path):
 def get_feature_vectors(images_path, algorithm='sift', hessianThreshold=400 , numOfClusters=100):
     
     # Extract BOW descriptors for all images
-    vbowDescriptors = vBow_extract_all(images_path, algorithm, hessianThreshold)
+    imagesDiscreptors = vBow_extract_all(images_path, algorithm, hessianThreshold)
 
-    print(f"Finished extracting BOW descriptors for {len(vbowDescriptors)} images ^_^")
+    print(f"Finished extracting BOW descriptors for {len(imagesDiscreptors)} images ^_^")
 
     
     # Cluster BOW descriptors
-    kmeans = cluster_vbow(vbowDescriptors, numOfClusters)
+    kmeans = cluster_vbow(imagesDiscreptors, numOfClusters)
 
     print(f"Finished clustering BOW descriptors into {numOfClusters} clusters ^_^")
 
 
     
-    # Get BOW histograms
-    histograms = get_vbow_histograms(vbowDescriptors, kmeans)
+    # Get BOW featureVectors
+    featureVectors = get_vbow_featureVectors(imagesDiscreptors, kmeans)
 
-    print(f"Finished getting BOW histograms for {len(histograms)} images ^_^")
+    print(f"Finished getting BOW featureVectors for {len(featureVectors)} images ^_^")
+
+    invertedFile = create_inverted_file(imagesDiscreptors , kmeans)
     
-    return histograms
+    return featureVectors , kmeans , invertedFile
 
 
 
 def vBow_extract_all(path, algorithm='sift', hessianThreshold=400):
     imgs = get_images(path)
     # Pre-allocate array
-    VbowDescriptors = np.empty(len(imgs), dtype=object)
+    imagesDiscreptors = np.empty(len(imgs), dtype=object)
     
     for i, img_path in enumerate(imgs):
         img = cv.imread(img_path, 0)
@@ -107,54 +109,68 @@ def vBow_extract_all(path, algorithm='sift', hessianThreshold=400):
             _, descriptors = sift(img)
         elif algorithm == 'surf':
             _, descriptors = surf(img, hessianThreshold)
-        VbowDescriptors[i] = descriptors
+        imagesDiscreptors[i] = descriptors
     
-    return VbowDescriptors
+    return imagesDiscreptors
 
-def get_vbow_histograms(vbowDescriptors, kmeans):
-    n_images = len(vbowDescriptors)
-    histograms = np.zeros((n_images, kmeans.n_clusters))
+def get_vbow_featureVectors(imagesDiscreptors, kmeans):
+    n_images = len(imagesDiscreptors)
+    featureVectors = np.zeros((n_images, kmeans.n_clusters))
     
-    for i, descriptors in enumerate(vbowDescriptors):
+    for i, descriptors in enumerate(imagesDiscreptors): # loop over all images
         # Predict all clusters at once
-        clusters = kmeans.predict(descriptors)
-        # Use bincount for faster histogram creation
-        hist = np.bincount(clusters, minlength=kmeans.n_clusters)
-        histograms[i] = hist
-        
-    return histograms
+        clusters = kmeans.predict(descriptors) # get the cluster of each keypoint in the image
+        # Count occurrences of each cluster
+        for cluster in clusters: 
+            featureVectors[i, cluster] += 1 # increment the count of the cluster in the feature vector of the image
 
-def cluster_vbow(vbowDescriptors, k=100):
+    return featureVectors # return the feature vectors of all images
+
+def cluster_vbow(imagesDiscreptors, k=100):
     # Calculate total number of descriptors
 
     #make sure that the descriptors in float64
-    for i in range(len(vbowDescriptors)):
-        vbowDescriptors[i] = np.float64(vbowDescriptors[i])
+    for i in range(len(imagesDiscreptors)):
+        imagesDiscreptors[i] = np.float64(imagesDiscreptors[i])
 
-    total_desc = sum(desc.shape[0] for desc in vbowDescriptors)
-    descriptors = np.empty((total_desc, vbowDescriptors[0].shape[1]))
+    total_desc = sum(desc.shape[0] for desc in imagesDiscreptors) # number of all keypoints in all images
+    descriptors = np.empty((total_desc, imagesDiscreptors[0].shape[1])) # pre-allocate array (number of all keypoints, 128)
     
     # Fill array more efficiently
     idx = 0
-    for desc in vbowDescriptors:
-        n_desc = desc.shape[0]
-        descriptors[idx:idx + n_desc] = desc
+    for desc in imagesDiscreptors:
+        n_desc = desc.shape[0] # number of keypoints in the current image
+        descriptors[idx:idx + n_desc] = desc # fill the array with the keypoints of the current image
         idx += n_desc
+
+    # the result is an array of shape (total number of keypoints, 128) containing all the keypoints of all images
     
-    kmeans = KMeans(n_clusters=k)
-    kmeans.fit(descriptors)
+    kmeans = KMeans(n_clusters=k) # create KMeans object
+    kmeans.fit(descriptors) # fit the KMeans object to the descriptors
     return kmeans
 
-def create_inverted_file(histograms):
-    # Convert to sparse format for efficiency
-    histograms = np.array(histograms)
-    inverted_file = {}
+
+def create_inverted_file(vBowDiscriptors , kMeans):
     
-    # Use numpy operations for finding non-zero elements
-    non_zero_indices = np.nonzero(histograms)
-    for img_idx, word_idx in zip(non_zero_indices[0], non_zero_indices[1]):
-        if word_idx not in inverted_file:
-            inverted_file[word_idx] = []
-        inverted_file[word_idx].append(img_idx)
+    invertedFile = {}
+    for i, descriptors in enumerate(vBowDiscriptors): # loop over all images
+        # Predict all clusters at once
+        clusters = kMeans.predict(descriptors) # get the cluster of each keypoint in the image
+        # Count occurrences of each cluster
+        for j, cluster in enumerate(clusters): 
+
+            if cluster not in invertedFile: # if the cluster is not in the inverted file, add it
+                invertedFile[cluster] = []
+
+            invertedFile[cluster].append((i,j))  # add the image index and the keypoint index in the image to the cluster in the inverted file
     
-    return inverted_file
+    return invertedFile
+        
+
+    
+
+    
+       
+        
+    
+   
