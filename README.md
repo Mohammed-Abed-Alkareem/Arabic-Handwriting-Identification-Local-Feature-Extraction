@@ -13,7 +13,6 @@ This project focuses on identifying Arabic handwritten text using local feature 
 - [Evaluation Metrics](#evaluation-metrics)
 - [Results](#results)
 - [Conclusion](#conclusion)
-- [Acknowledgments](#acknowledgments)
 
 ---
 
