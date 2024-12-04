@@ -138,14 +138,6 @@ def extract_features(
     return feature_vectors, processed_labels, kmeans
 
 
-def get_vBOW_image(img, kMeans):
-
-    _, descriptors = sift(img)
-    feature_vector = get_vbow_featureVector(descriptors, kMeans)
-
-    return feature_vector
-
-
 
 def get_vbow_featureVectors(imagesDiscreptors, kmeans):
     n_images = len(imagesDiscreptors)
@@ -156,7 +148,7 @@ def get_vbow_featureVectors(imagesDiscreptors, kmeans):
         # Predict all clusters at once
         featureVectors[i] = get_vbow_featureVector(descriptors, kmeans)
 
-    feature_vectors = compute_tfidf_weights(feature_vectors)
+    featureVectors = compute_tfidf_weights(featureVectors)
         
     return featureVectors # return the feature vectors of all images
 
